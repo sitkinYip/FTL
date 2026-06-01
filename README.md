@@ -12,6 +12,21 @@
 
 ## 快速开始
 
+### MAC一键启动（推荐 当前仅支持MAC）
+
+```bash
+bash run.sh
+```
+
+脚本会自动完成以下工作：
+
+- **检查 Python 环境**：需要 Python 3.9+，macOS 下未安装时会通过 Homebrew 自动安装
+- **创建虚拟环境**：自动创建 `.venv` 并激活，避免污染全局环境
+- **安装依赖**：首次运行或 `requirements.txt` 更新后自动安装，否则跳过
+- **启动应用**：自动运行 `main.py`
+
+### 手动启动
+
 ```bash
 # 安装依赖
 pip install -r requirements.txt
