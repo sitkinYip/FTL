@@ -62,6 +62,9 @@ def main(page: ft.Page):
 
     page.on_platform_brightness_change = _on_brightness_change
 
+    # 全局键盘监听：⌘V / Ctrl+V 粘贴字体文件
+    page.on_keyboard_event = main_view.on_keyboard
+
 
 if __name__ == "__main__":
     ft.app(target=main)  # 兼容旧版；Flet 0.80+ 可用 ft.run(main)

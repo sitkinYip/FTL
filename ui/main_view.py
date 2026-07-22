@@ -1,26 +1,27 @@
 """
-主界面布局 v5 - Apple 高密度工具风格（双列布局）
+主界面布局 v6 - Apple 高密度工具风格（上传铺满 + 双列配置）
 
 Design Read（design-taste-frontend §0.B）:
   紧凑型字体子集化工具，Linear / Apple System Preferences 语言，
   高密度（VISUAL_DENSITY 8）/ 低变化（VARIANCE 3）/ 低动效（MOTION 2）。
 
-布局策略：
-  双列配置型布局，单屏装下无需滚动：
-    ┌──────────────────────┬──────────────────────┐
-    │ 品牌行（跨双列）     │                      │
-    ├──────────────────────┼──────────────────────┤
-    │  字体文件            │  输出格式            │
-    │  （按钮+路径+列表）  │  （复选+位置+高级）  │
-    ├──────────────────────┼──────────────────────┤
-    │  字符集              │                      │
-    │  （文本域+预设）     │  （留空/对称）       │
-    └──────────────────────┴──────────────────────┘
-                  [ 开始处理 ]（底部固定）
-  处理进度通过全局模态弹窗显示（步骤式 loading + 结果），不再埋底部日志。
-  各分区不套卡片，用 SectionHeader + hairline 分隔。
+布局策略（单屏装下，无需滚动）：
+    ┌────────────────────────────────────────────────┐
+    │ 品牌行                                         │
+    ├────────────────────────────────────────────────┤
+    │ 投放区（上传）铺满整宽                          │
+    │ ☁ 点击 / 拖拽 / ⌘V 粘贴                       │
+    ├────────────────────────┬───────────────────────┤
+    │ 字符集                 │ 输出格式              │
+    │ （文本域 + 预设）      │ （复选 + 位置）       │
+    │                        │ [高级选项]（弹窗）    │
+    ├────────────────────────┴───────────────────────┤
+    │            [ 开始处理 ]（底部固定）            │
+    └────────────────────────────────────────────────┘
+  高级选项通过弹窗承载（不再内嵌折叠）。
+  处理进度通过全局模态弹窗显示，不再埋底部日志。
 
-业务逻辑（_on_start / _process_single_file / 回调）与 v2 完全一致。
+业务逻辑（_on_start / _process_single_file / 回调）不变。
 所有子组件的公共属性 / 方法签名保持不变。
 """
 
@@ -31,12 +32,13 @@ import flet as ft
 from ui.theme import (
     tokens, FONT_DISPLAY, FONT_LABEL, FONT_HINT,
     SPACING_SM, SPACING_MD, SPACING_LG, SPACING_XL,
-    PADDING_LG, PADDING_XL, BTN_HEIGHT_LG, RADIUS_BTN_PILL,
+    PADDING_LG, BTN_HEIGHT_LG, RADIUS_BTN_PILL,
 )
-from ui.widgets import SectionHeader, hairline
+from ui.widgets import SectionHeader
 from ui.file_picker import FilePicker
 from ui.charset_input import CharsetInput
 from ui.format_options import FormatOptions
+from ui.advanced_dialog import AdvancedDialog
 from ui.processing_dialog import ProcessingDialog
 
 from font.subsetter import subset_font
@@ -48,7 +50,7 @@ from utils.async_worker import AsyncWorker
 
 
 class MainView(ft.Container):
-    """主界面容器（Apple 双列配置工具风格）"""
+    """主界面容器（Apple 工具风格：上传铺满 + 双列配置）"""
 
     def __init__(self, page: ft.Page):
         super().__init__(expand=True)
@@ -56,16 +58,20 @@ class MainView(ft.Container):
         self._worker = AsyncWorker(max_workers=2)
         self._processing = False
 
+        # 高级选项弹窗（先建，FormatOptions 引用其 advanced_options）
+        self._advanced_dialog = AdvancedDialog(page)
+
         # 子组件（公共 API 不变）
         self._file_picker = FilePicker(page)
         self._charset_input = CharsetInput(page)
-        self._format_options = FormatOptions(page)
+        self._format_options = FormatOptions(page, self._advanced_dialog.advanced_options)
 
         # 处理进度弹窗（替代原 ProgressLog）
         self._dialog = ProcessingDialog(page)
 
-        # 开始按钮
         t = tokens(page)
+
+        # 开始按钮
         self._start_btn = ft.ElevatedButton(
             "开始处理",
             icon=ft.Icons.PLAY_ARROW_ROUNDED,
@@ -79,6 +85,13 @@ class MainView(ft.Container):
                 text_style=ft.TextStyle(size=FONT_LABEL, weight=ft.FontWeight.W_600),
                 icon_color=t["accent_on"],
             ),
+        )
+
+        # 高级选项触发按钮（放输出格式区标题旁）
+        self._advanced_btn = ft.TextButton(
+            "高级选项", icon=ft.Icons.TUNE_OUTLINED,
+            on_click=lambda e: self._advanced_dialog.open(),
+            style=ft.ButtonStyle(color=t["text_secondary"]),
         )
 
         # 品牌行
@@ -102,7 +115,7 @@ class MainView(ft.Container):
     # 布局构建
     # ------------------------------------------------------------
     def _build_layout(self):
-        """双列布局：左列输入（文件+字符集），右列配置（格式+位置+高级）。"""
+        """上传铺满 → 字符集/输出格式双列 → 底部开始按钮。"""
 
         # 品牌行
         brand_row = ft.Row(
@@ -116,37 +129,38 @@ class MainView(ft.Container):
             vertical_alignment=ft.CrossAxisAlignment.END,
         )
 
-        # 分区标题
-        header_files = SectionHeader(self._page, "字体文件")
-        header_charset = SectionHeader(self._page, "字符集")
-        header_output = SectionHeader(self._page, "输出格式")
-        self._section_headers = [header_files, header_charset, header_output]
+        # 上传区（铺满整宽）—— FilePicker 自带投放区，直接整块放
+        upload_section = ft.Column(
+            [self._file_picker],
+            spacing=0,
+        )
 
-        # 左列：字体文件 + 字符集
+        # 左列：字符集
+        header_charset = ft.Row([
+            ft.Text("字符集", size=17, weight=ft.FontWeight.W_600,
+                    color=tokens(self._page)["text_primary"]),
+        ])
         left_col = ft.Column(
-            [
-                header_files,
-                self._file_picker,
-                hairline(self._page),
-                header_charset,
-                self._charset_input,
-            ],
+            [header_charset, self._charset_input],
             spacing=SPACING_MD,
             expand=True,
         )
 
-        # 右列：输出格式（含位置 + 高级选项）
+        # 右列：输出格式（标题带「高级选项」按钮）
+        header_output = ft.Row([
+            ft.Text("输出格式", size=17, weight=ft.FontWeight.W_600,
+                    color=tokens(self._page)["text_primary"]),
+            ft.Container(expand=True),
+            self._advanced_btn,
+        ])
         right_col = ft.Column(
-            [
-                header_output,
-                self._format_options,
-            ],
+            [header_output, self._format_options],
             spacing=SPACING_MD,
             expand=True,
         )
 
-        # 双列主体
-        body = ft.Row(
+        # 双列：字符集 | 输出格式
+        config_row = ft.Row(
             [left_col, right_col],
             spacing=SPACING_XL,
             vertical_alignment=ft.CrossAxisAlignment.START,
@@ -162,10 +176,12 @@ class MainView(ft.Container):
             padding=ft.padding.only(top=SPACING_SM, bottom=SPACING_SM),
         )
 
-        # 外层：品牌行 + 双列主体 + 底部按钮
+        self._header_charset = header_charset.controls[0]
+        self._header_output = header_output.controls[0]
+
         self.padding = PADDING_LG
         self.content = ft.Column(
-            [brand_row, body, start_bar],
+            [brand_row, upload_section, config_row, start_bar],
             spacing=SPACING_LG,
             expand=True,
         )
@@ -190,16 +206,27 @@ class MainView(ft.Container):
         self._start_btn.style.color = t["accent_on"]
         self._start_btn.style.icon_color = t["accent_on"]
 
-        for hdr in self._section_headers:
-            hdr.controls[0].color = t["text_primary"]
+        self._header_charset.color = t["text_primary"]
+        self._header_output.color = t["text_primary"]
+        self._advanced_btn.style.color = t["text_secondary"]
 
         for comp in (self._file_picker, self._charset_input, self._format_options):
             comp.apply_theme()
 
+        self._advanced_dialog.apply_theme()
         self._dialog.apply_theme()
 
     # ------------------------------------------------------------
-    # 业务逻辑（与 v2 一致，进度改为弹窗反馈）
+    # 全局键盘监听（⌘V / Ctrl+V 粘贴字体文件）
+    # ------------------------------------------------------------
+    def on_keyboard(self, e: ft.KeyboardEvent):
+        """全局键盘事件：检测粘贴动作（mac ⌘V / win Ctrl+V）。"""
+        is_paste = (e.key == "V" or e.key == "v") and (e.meta or e.ctrl)
+        if is_paste and not self._processing:
+            self._file_picker.handle_paste()
+
+    # ------------------------------------------------------------
+    # 业务逻辑（不变，进度改为弹窗反馈）
     # ------------------------------------------------------------
     def _on_start(self, e):
         if self._processing:
