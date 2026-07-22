@@ -4,6 +4,8 @@
 
 
 
+from pathlib import Path
+
 import flet as ft
 from ui.glass_panel import GlassPanel
 from ui.theme import (

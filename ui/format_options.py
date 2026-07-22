@@ -81,6 +81,11 @@ class FormatOptions(ft.Column):
     def custom_dir(self) -> str:
         return self._custom_dir_value
 
+    @property
+    def advanced_options(self) -> AdvancedOptions:
+        """暴露高级选项组件，供外部读取其 options_dict。"""
+        return self._advanced_options
+
     def _on_mode_change(self, e):
         is_custom = self._output_mode.value == "custom"
         self._custom_dir_btn.visible = is_custom
