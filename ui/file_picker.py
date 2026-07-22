@@ -1,15 +1,18 @@
 """
-文件选择区组件 v5 - AntD Upload 风格的投放区
+文件选择区组件 v6 - AntD Upload 风格的选择区
 
-三路入口统一到一块醒目的拖拽区：
+两个真可用的入口统一到一块醒目区域：
   1. 点击 → 打开文件选择对话框
   2. ⌘V (mac) / Ctrl+V (win) → 全局粘贴，读取剪贴板文件路径
-  3. 应用内拖拽 → DragTarget（原生文件拖入需系统级支持，受 Flet 限制）
+
+注：原生文件拖拽（Finder 拖进窗口）在 Flet 0.82 桌面端无干净绕过
+（client-server 架构拿不到原生窗口句柄，无 PyObjC/tkinter），
+故不提供拖拽入口，避免「能用却没反应」的误导。
 
 设计参照 Ant Design Upload.Dragger：
   - 大块虚线边框区域
-  - 居中图标 + 主提示 + 次提示（说明三路入口）
-  - hover / 激活态视觉反馈
+  - 居中图标 + 主提示 + 次提示
+  - hover 视觉反馈
   - 下方文件列表（有文件时）
 
 业务逻辑与公共属性不变。
@@ -52,17 +55,17 @@ class FilePicker(ft.Column):
             ft.Icons.CLOUD_UPLOAD_OUTLINED, size=40, color=t["accent"],
         )
         self._drop_title = ft.Text(
-            "点击选择，或拖拽字体文件到此处",
+            "点击选择字体文件",
             size=FONT_BODY, weight=ft.FontWeight.W_500, color=t["text_primary"],
             text_align=ft.TextAlign.CENTER,
         )
         self._drop_hint = ft.Text(
-            "支持 .ttf .otf .woff .woff2 · 也可按 ⌘V / Ctrl+V 粘贴",
+            "支持 .ttf .otf .woff .woff2 · 也可在 Finder 复制后按 ⌘V 粘贴",
             size=FONT_HINT, color=t["text_secondary"],
             text_align=ft.TextAlign.CENTER,
         )
 
-        # 投放区主体（虚线边框 + hover 态）
+        # 选择区主体（虚线边框 + hover 态）
         drop_content = ft.Column(
             [self._drop_icon, self._drop_title, self._drop_hint],
             spacing=SPACING_SM,
@@ -79,15 +82,8 @@ class FilePicker(ft.Column):
             border_radius=RADIUS_CARD,
             bgcolor=t["surface_sunken"],
             on_click=self._pick_files,  # 点击打开对话框
-            on_hover=self._on_drop_hover,
-            # 包裹 DragTarget 以支持应用内拖拽（原生文件拖入受 Flet 限制）
-        )
-        self._drop_target = ft.DragTarget(
-            content=self._drop_zone,
-            group="files",
-            on_will_accept=self._on_drag_will_accept,
-            on_accept=self._on_drag_accept,
-            on_leave=self._on_drag_leave,
+            on_hover=self._on_hover,
+            ink=True,  # 点击涟漪反馈
         )
 
         # —— 文件列表（有文件时显示）——
@@ -100,8 +96,8 @@ class FilePicker(ft.Column):
                 ft.Container(expand=True),
                 self._clear_btn,
             ], spacing=SPACING_SM),
-            # 投放区
-            self._drop_target,
+            # 选择区
+            self._drop_zone,
             # 文件列表
             self._file_list,
         ]
@@ -149,42 +145,22 @@ class FilePicker(ft.Column):
         self._import_from_clipboard(None)
 
     # ------------------------------------------------------------
-    # 投放区交互
+    # 选择区交互
     # ------------------------------------------------------------
-    def _on_drop_hover(self, e):
-        """鼠标进入/离开投放区的视觉反馈。"""
+    def _on_hover(self, e):
+        """鼠标进入/离开选择区的视觉反馈。"""
         t = tokens(self._page)
         if e.data == "true":
             self._drop_zone.bgcolor = t["accent_bg"]
+            self._drop_zone.border = ft.border.all(2, t["accent"])
         else:
             self._drop_zone.bgcolor = t["surface_sunken"]
+            self._drop_zone.border = ft.border.all(2, t["border_strong"])
         self._page.update()
-
-    def _on_drag_will_accept(self, e):
-        """拖拽悬停时高亮边框。"""
-        t = tokens(self._page)
-        self._drop_zone.border = ft.border.all(2, t["accent"])
-        self._drop_zone.bgcolor = t["accent_bg"]
-        self._page.update()
-
-    def _on_drag_leave(self, e):
-        """拖拽离开恢复。"""
-        t = tokens(self._page)
-        self._drop_zone.border = ft.border.all(2, t["border_strong"])
-        self._drop_zone.bgcolor = t["surface_sunken"]
-        self._page.update()
-
-    def _on_drag_accept(self, e):
-        """接受拖拽（应用内 Draggable，当前无源；原生文件拖入受 Flet 限制）。"""
-        self._on_drag_leave(e)
 
     # ------------------------------------------------------------
     # 文件添加 / 选择 / 粘贴
     # ------------------------------------------------------------
-    def _on_path_submit(self, e):
-        # 保留：路径输入回车（如未来再加路径框）
-        pass
-
     def _import_from_clipboard(self, e):
         """从剪贴板导入文件路径（Finder ⌘C 复制的文件 / 或纯文本路径）。"""
         try:
