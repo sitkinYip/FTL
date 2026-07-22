@@ -1,25 +1,43 @@
 """
-主界面布局 v2 - 深色毛玻璃多层级卡片
-"""
+主界面布局 v5 - Apple 高密度工具风格（双列布局）
 
+Design Read（design-taste-frontend §0.B）:
+  紧凑型字体子集化工具，Linear / Apple System Preferences 语言，
+  高密度（VISUAL_DENSITY 8）/ 低变化（VARIANCE 3）/ 低动效（MOTION 2）。
+
+布局策略：
+  双列配置型布局，单屏装下无需滚动：
+    ┌──────────────────────┬──────────────────────┐
+    │ 品牌行（跨双列）     │                      │
+    ├──────────────────────┼──────────────────────┤
+    │  字体文件            │  输出格式            │
+    │  （按钮+路径+列表）  │  （复选+位置+高级）  │
+    ├──────────────────────┼──────────────────────┤
+    │  字符集              │                      │
+    │  （文本域+预设）     │  （留空/对称）       │
+    └──────────────────────┴──────────────────────┘
+                  [ 开始处理 ]（底部固定）
+  处理进度通过全局模态弹窗显示（步骤式 loading + 结果），不再埋底部日志。
+  各分区不套卡片，用 SectionHeader + hairline 分隔。
+
+业务逻辑（_on_start / _process_single_file / 回调）与 v2 完全一致。
+所有子组件的公共属性 / 方法签名保持不变。
+"""
 
 
 from pathlib import Path
 
 import flet as ft
-from ui.glass_panel import GlassPanel
 from ui.theme import (
-    PRIMARY, TEXT_PRIMARY, TEXT_LABEL, TEXT_DESC, TEXT_ON_PRIMARY,
-    BG_PAGE, BG_GRADIENT_START, BG_GRADIENT_END,
-    FONT_TITLE, FONT_SECTION, FONT_LABEL, FONT_BTN,
-    PADDING_MD, SPACING_MD,
-    BTN_HEIGHT, BTN_RADIUS,
+    tokens, FONT_DISPLAY, FONT_LABEL, FONT_HINT,
+    SPACING_SM, SPACING_MD, SPACING_LG, SPACING_XL,
+    PADDING_LG, PADDING_XL, BTN_HEIGHT_LG, RADIUS_BTN_PILL,
 )
+from ui.widgets import SectionHeader, hairline
 from ui.file_picker import FilePicker
 from ui.charset_input import CharsetInput
 from ui.format_options import FormatOptions
-
-from ui.progress_log import ProgressLog
+from ui.processing_dialog import ProcessingDialog
 
 from font.subsetter import subset_font
 from font.converter import convert_and_save
@@ -30,93 +48,159 @@ from utils.async_worker import AsyncWorker
 
 
 class MainView(ft.Container):
-    """主界面容器"""
+    """主界面容器（Apple 双列配置工具风格）"""
 
     def __init__(self, page: ft.Page):
+        super().__init__(expand=True)
         self._page = page
         self._worker = AsyncWorker(max_workers=2)
         self._processing = False
 
-        # 子组件
+        # 子组件（公共 API 不变）
         self._file_picker = FilePicker(page)
         self._charset_input = CharsetInput(page)
         self._format_options = FormatOptions(page)
-        
-        self._progress_log = ProgressLog(page)
+
+        # 处理进度弹窗（替代原 ProgressLog）
+        self._dialog = ProcessingDialog(page)
 
         # 开始按钮
+        t = tokens(page)
         self._start_btn = ft.ElevatedButton(
             "开始处理",
             icon=ft.Icons.PLAY_ARROW_ROUNDED,
             on_click=self._on_start,
             width=220,
-            height=BTN_HEIGHT + 6,
+            height=BTN_HEIGHT_LG,
             style=ft.ButtonStyle(
-                bgcolor=PRIMARY,
-                color=TEXT_ON_PRIMARY,
-                shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
-                text_style=ft.TextStyle(size=FONT_BTN, weight=ft.FontWeight.W_600),
+                bgcolor=t["accent"],
+                color=t["accent_on"],
+                shape=ft.RoundedRectangleBorder(radius=RADIUS_BTN_PILL),
+                text_style=ft.TextStyle(size=FONT_LABEL, weight=ft.FontWeight.W_600),
+                icon_color=t["accent_on"],
             ),
         )
 
-        # 多层级卡片布局
-        content_column = ft.Column(
-            [
-                # 顶部按钮（固定可见）
-                ft.Container(
-                    content=ft.Row(
-                        controls=[self._start_btn],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                    padding=ft.padding.symmetric(vertical=SPACING_MD),
-                ),
-                # 标题
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text("FTL - Font Tool Lite", size=FONT_TITLE,
-                                weight=ft.FontWeight.W_700, color=TEXT_PRIMARY),
-                        ft.Text("字体子集压缩工具 · 保留所需字符，极致缩小体积",
-                                size=FONT_LABEL, color=TEXT_DESC),
-                    ], spacing=4),
-                    padding=ft.padding.only(bottom=SPACING_MD),
-                ),
-                # 文件选择 - 浅层卡片
-                GlassPanel(content=self._file_picker, depth="light"),
-                # 字符集 - 中层卡片
-                GlassPanel(content=self._charset_input, depth="mid"),
-                # 输出格式 - 中层卡片
-                GlassPanel(content=self._format_options, depth="mid"),
-                # 高级选项 - 浅层
+        # 品牌行
+        self._brand_title = ft.Text(
+            "FTL", size=FONT_DISPLAY, weight=ft.FontWeight.W_700,
+            color=t["text_primary"],
+        )
+        self._brand_name = ft.Text(
+            "Font Tool Lite", size=FONT_DISPLAY, weight=ft.FontWeight.W_400,
+            color=t["text_secondary"],
+        )
+        self._brand_desc = ft.Text(
+            "字体子集压缩工具",
+            size=FONT_HINT, color=t["text_tertiary"],
+        )
 
-                # 进度日志 - 深层卡片（占满剩余空间）
-                GlassPanel(content=self._progress_log, depth="deep"),
+        self._build_layout()
+        self.apply_theme()
+
+    # ------------------------------------------------------------
+    # 布局构建
+    # ------------------------------------------------------------
+    def _build_layout(self):
+        """双列布局：左列输入（文件+字符集），右列配置（格式+位置+高级）。"""
+
+        # 品牌行
+        brand_row = ft.Row(
+            [
+                ft.Row([self._brand_title, self._brand_name], spacing=8,
+                       vertical_alignment=ft.CrossAxisAlignment.END),
+                ft.Container(expand=True),
+                self._brand_desc,
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.END,
+        )
+
+        # 分区标题
+        header_files = SectionHeader(self._page, "字体文件")
+        header_charset = SectionHeader(self._page, "字符集")
+        header_output = SectionHeader(self._page, "输出格式")
+        self._section_headers = [header_files, header_charset, header_output]
+
+        # 左列：字体文件 + 字符集
+        left_col = ft.Column(
+            [
+                header_files,
+                self._file_picker,
+                hairline(self._page),
+                header_charset,
+                self._charset_input,
             ],
             spacing=SPACING_MD,
-            scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
 
-        # 外层深色渐变背景
-        # 背景层（使用背景图片或纯色渐变）
-        background = ft.Container(
-            content=ft.Image(src="assets/background.jpg", fit="cover", opacity=0.6),
+        # 右列：输出格式（含位置 + 高级选项）
+        right_col = ft.Column(
+            [
+                header_output,
+                self._format_options,
+            ],
+            spacing=SPACING_MD,
             expand=True,
-        )
-        super().__init__(
-            content=ft.Stack(
-                [
-                    background,
-                    ft.Container(content=content_column, padding=PADDING_MD, expand=True),
-                ]
-            ),
-            expand=True,
-            gradient=ft.LinearGradient(
-                begin=ft.Alignment(-1, -1),
-                end=ft.Alignment(1, 1),
-                colors=[BG_GRADIENT_START, BG_GRADIENT_END],
-            ),
         )
 
+        # 双列主体
+        body = ft.Row(
+            [left_col, right_col],
+            spacing=SPACING_XL,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            expand=True,
+        )
+
+        # 底部固定开始按钮栏
+        start_bar = ft.Container(
+            content=ft.Row(
+                [self._start_btn],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            padding=ft.padding.only(top=SPACING_SM, bottom=SPACING_SM),
+        )
+
+        # 外层：品牌行 + 双列主体 + 底部按钮
+        self.padding = PADDING_LG
+        self.content = ft.Column(
+            [brand_row, body, start_bar],
+            spacing=SPACING_LG,
+            expand=True,
+        )
+
+    # ------------------------------------------------------------
+    # 主题应用
+    # ------------------------------------------------------------
+    def apply_theme(self):
+        t = tokens(self._page)
+
+        self.gradient = ft.LinearGradient(
+            begin=ft.Alignment(-1, -1),
+            end=ft.Alignment(1, 1),
+            colors=[t["canvas"], t["canvas_gradient_end"]],
+        )
+
+        self._brand_title.color = t["text_primary"]
+        self._brand_name.color = t["text_secondary"]
+        self._brand_desc.color = t["text_tertiary"]
+
+        self._start_btn.style.bgcolor = t["accent"]
+        self._start_btn.style.color = t["accent_on"]
+        self._start_btn.style.icon_color = t["accent_on"]
+
+        for hdr in self._section_headers:
+            hdr.controls[0].color = t["text_primary"]
+
+        for comp in (self._file_picker, self._charset_input, self._format_options):
+            comp.apply_theme()
+
+        self._dialog.apply_theme()
+
+    # ------------------------------------------------------------
+    # 业务逻辑（与 v2 一致，进度改为弹窗反馈）
+    # ------------------------------------------------------------
     def _on_start(self, e):
         if self._processing:
             return
@@ -141,8 +225,8 @@ class MainView(ft.Container):
         self._start_btn.text = "处理中..."
         self._page.update()
 
-        self._progress_log.reset()
-        self._progress_log.log_info(f"开始处理 {len(files)} 个文件，字符数: {len(characters)}")
+        # 弹出处理弹窗
+        self._dialog.start(total=len(files))
 
         tasks = []
         for fp in files:
@@ -177,32 +261,29 @@ class MainView(ft.Container):
 
     def _on_progress(self, progress):
         pct = progress.progress
+        self._dialog.update_progress(pct, progress.current_file)
+
         last = progress.results[-1] if progress.results else None
-
-        self._progress_log.set_progress(
-            pct, f"{progress.completed}/{progress.total} - {progress.current_file}")
-
         if last:
             if last.success:
                 outputs = last.outputs
                 flat = outputs[0] if isinstance(outputs, list) and outputs and isinstance(outputs[0], list) else outputs
                 for item in (flat if isinstance(flat, list) else [flat]):
                     if isinstance(item, dict) and item.get("success"):
-                        self._progress_log.log_success(
+                        self._dialog.log_success(
                             f"{last.input_file} -> {item['format']} ({format_file_size(item.get('size', 0))})")
                     elif isinstance(item, dict):
-                        self._progress_log.log_error(
+                        self._dialog.log_error(
                             f"{last.input_file} -> {item.get('format','?')} 失败: {item.get('error','')}")
             else:
-                self._progress_log.log_error(f"{last.input_file} 失败: {last.error}")
+                self._dialog.log_error(f"{last.input_file} 失败: {last.error}")
 
     def _on_all_complete(self, progress):
         ok = sum(1 for r in progress.results if r.success)
         fail = len(progress.results) - ok
-        t = sum(r.elapsed for r in progress.results)
+        elapsed = sum(r.elapsed for r in progress.results)
 
-        self._progress_log.set_progress(1.0, "完成")
-        self._progress_log.log_info(f"完成！成功 {ok}，失败 {fail}，耗时 {t:.2f}s")
+        self._dialog.finish(f"成功 {ok} · 失败 {fail} · 耗时 {elapsed:.2f}s")
 
         self._processing = False
         self._start_btn.disabled = False
@@ -210,7 +291,8 @@ class MainView(ft.Container):
         self._page.update()
 
     def _show_error(self, message: str):
-        sb = ft.SnackBar(content=ft.Text(message, color="#FFFFFF"), bgcolor="#FF5A5A")
+        t = tokens(self._page)
+        sb = ft.SnackBar(content=ft.Text(message, color="#FFFFFF"), bgcolor=t["error"])
         self._page.overlay.append(sb)
         sb.open = True
         self._page.update()

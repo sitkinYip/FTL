@@ -1,87 +1,57 @@
 """
-FTL 主题常量定义 v2
-深色毛玻璃风格：深蓝紫背景 + 半透明卡片 + 高可读性亮色文字
+FTL 主题令牌 v3 - Apple 风格双模设计系统
+
+跟随系统外观（浅色/深色），单一锁定强调色（Apple 系统蓝）。
+所有语义令牌按模式分组，组件统一通过 tokens(page) 取值。
+
+设计原则（迁移自 design-taste-frontend / high-end-visual-design）：
+  - COLOR CONSISTENCY LOCK: 全页仅一个强调色
+  - SHAPE CONSISTENCY LOCK: 统一圆角尺度（card 20 / input 12 / pill 全圆）
+  - 阴影 tinted 到背景色，无纯黑投影
+  - 无 AI 紫渐变、无 mesh 辉光、无外发光
+  - 无 em-dash，无占位假名
 """
 
-# ============================================================
-# 页面背景（深色渐变）
-# ============================================================
+import flet as ft
 
-BG_PAGE = "#0F0E1A"
-BG_GRADIENT_START = "#12111F"
-BG_GRADIENT_END = "#1A1830"
 
 # ============================================================
-# 卡片/面板背景（半透明深色玻璃，不是纯黑）
+# 强调色（COLOR CONSISTENCY LOCK - 全页唯一）
+# Apple 系统蓝：浅色 #0071E3，深色 #0A84FF
 # ============================================================
 
-GLASS_BG_LIGHT = "rgba(30, 28, 55, 0.45)"       # 上方参数区（最浅）
-GLASS_BG_MID = "rgba(22, 20, 45, 0.55)"         # 中间字符集区
-GLASS_BG_DEEP = "rgba(16, 14, 36, 0.65)"        # 底部输出/日志区（最深）
-GLASS_BORDER = "rgba(150, 170, 255, 0.2)"       # 卡片边框
-GLASS_BORDER_FOCUS = "rgba(150, 170, 255, 0.5)" # 聚焦边框
+ACCENT_LIGHT = "#0071E3"
+ACCENT_HOVER_LIGHT = "#0077ED"
+ACCENT_DARK = "#0A84FF"
+ACCENT_HOVER_DARK = "#409CFF"
+
 
 # ============================================================
-# 主色调
+# 状态色（跨模式语义色，Apple 系统色板）
 # ============================================================
 
-PRIMARY = "#6C6BFF"
-PRIMARY_LIGHT = "#8B8AFF"
-PRIMARY_DARK = "#5250D9"
-PRIMARY_BG = "rgba(108, 107, 255, 0.15)"  # 按钮悬浮态背景
+SUCCESS_LIGHT = "#1D8C3E"
+SUCCESS_DARK = "#30D158"
+WARNING_LIGHT = "#C27300"
+WARNING_DARK = "#FFD60A"
+ERROR_LIGHT = "#D70015"
+ERROR_DARK = "#FF453A"
+
 
 # ============================================================
-# 辅助色
+# 圆角尺度（SHAPE CONSISTENCY LOCK）
 # ============================================================
 
-ACCENT = "#00D2FF"
-SUCCESS = "#5AE87C"
-WARNING = "#FFAA33"
-ERROR = "#FF5A5A"
+RADIUS_CARD = 20       # 卡片 / 玻璃面板
+RADIUS_INPUT = 12      # 输入框
+RADIUS_GROUP = 14      # 日志区等次级容器
+RADIUS_CHIP = 999      # pill / chip 全圆
+RADIUS_BTN = 12        # 普通按钮
+RADIUS_BTN_PILL = 999  # 主 CTA 全圆
+
 
 # ============================================================
-# 文字色（亮色系，深底上高对比）
-# ============================================================
-
-TEXT_PRIMARY = "#F5F7FF"          # 主体文字（最亮）
-TEXT_LABEL = "#C9D0FF"            # 标签/标题
-TEXT_DESC = "#A7B0E8"             # 说明/次要文字
-TEXT_HINT = "#7780B8"             # 占位/提示
-TEXT_ON_PRIMARY = "#FFFFFF"       # 按钮上的纯白文字
-
-# ============================================================
-# 输入框
-# ============================================================
-
-INPUT_BG = "rgba(20, 18, 42, 0.6)"
-INPUT_BORDER = "rgba(140, 160, 255, 0.35)"
-INPUT_BORDER_FOCUS = "rgba(140, 160, 255, 0.85)"
-INPUT_TEXT = "#F0F2FF"
-INPUT_HINT = "#7780B8"
-
-# ============================================================
-# 分割线
-# ============================================================
-
-DIVIDER_COLOR = "rgba(150, 170, 255, 0.18)"
-
-# ============================================================
-# 日志区
-# ============================================================
-
-LOG_BG = "rgba(10, 8, 24, 0.7)"
-LOG_TEXT = "#EDEFFF"
-
-# ============================================================
-# 圆角（统一 18）
-# ============================================================
-
-RADIUS = 18
-RADIUS_SM = 10
-RADIUS_INPUT = 12
-
-# ============================================================
-# 间距
+# 间距（8 倍数体系）
 # ============================================================
 
 SPACING_XS = 4
@@ -89,59 +59,213 @@ SPACING_SM = 8
 SPACING_MD = 12
 SPACING_LG = 16
 SPACING_XL = 24
-
-# ============================================================
-# 内边距
-# ============================================================
+SPACING_XXL = 32
 
 PADDING_SM = 12
 PADDING_MD = 16
 PADDING_LG = 20
 PADDING_XL = 28
 
-# ============================================================
-# 阴影（只用 1~2 层，简洁）
-# ============================================================
-
-SHADOW_CARD = {
-    "offset_x": 0,
-    "offset_y": 4,
-    "blur_radius": 20,
-    "color": "rgba(0, 0, 0, 0.25)",
-}
-
-SHADOW_CARD_DEEP = {
-    "offset_x": 0,
-    "offset_y": 6,
-    "blur_radius": 40,
-    "color": "rgba(0, 0, 0, 0.3)",
-}
 
 # ============================================================
-# 字号体系（严格落地）
+# 字号（SF 语义层级）
 # ============================================================
 
-FONT_TITLE = 22          # App 标题
-FONT_SECTION = 16        # Section 标题
-FONT_LABEL = 13          # Label
-FONT_BODY = 15           # 正文/输入内容
-FONT_BTN = 15            # 按钮文字（不低于 14）
-FONT_LOG = 13            # 日志文字
-FONT_HINT = 13           # 提示文字
+FONT_DISPLAY = 24   # 品牌标题
+FONT_TITLE = 20     # 卡片内大标题
+FONT_SECTION = 17   # 分区标题（SF Large Title 语义）
+FONT_LABEL = 13     # 标签 / 次级
+FONT_BODY = 15      # 正文 / 输入
+FONT_BTN = 15       # 按钮文字
+FONT_LOG = 13       # 日志
+FONT_HINT = 13      # 提示 / 占位
+FONT_META = 11      # 时间戳等元信息
+
 
 # ============================================================
 # 按钮
 # ============================================================
 
-BTN_HEIGHT = 42
-BTN_CHIP_HEIGHT = 34
-BTN_RADIUS = 10
+BTN_HEIGHT = 36       # Apple HIG 常规按钮（控钮）
+BTN_HEIGHT_LG = 44    # 主 CTA / Apple HIG 大按钮
+BTN_CHIP_HEIGHT = 32
+
 
 # ============================================================
-# 窗口
+# 窗口尺寸
 # ============================================================
 
-WINDOW_WIDTH = 920
-WINDOW_HEIGHT = 760
+WINDOW_WIDTH = 960
+WINDOW_HEIGHT = 780
 WINDOW_MIN_WIDTH = 720
 WINDOW_MIN_HEIGHT = 600
+
+
+# ============================================================
+# 双模语义令牌
+# ============================================================
+
+_LIGHT = {
+    # 画布与表面
+    "canvas": "#F5F5F7",            # Apple 灰白
+    "canvas_gradient_end": "#ECECEF",
+    "surface": "#FFFFFF",           # 实心卡片
+    "surface_elevated": "#FFFFFF",
+    "surface_sunken": "#F2F2F4",    # 凹陷区（输入框底 / 日志底）
+    "surface_hover": "#EFEFF2",
+
+    # 玻璃 / 边框（卡片用实色白，hairline 边框）
+    "glass_bg": "#FFFFFF",
+    "glass_bg_elevated": "#FFFFFF",
+    "border": "rgba(60, 60, 67, 0.12)",        # Apple 标准 hairline
+    "border_strong": "rgba(60, 60, 67, 0.29)",
+    "border_focus": ACCENT_LIGHT,
+    "divider": "rgba(60, 60, 67, 0.18)",
+
+    # 文字层级
+    "text_primary": "#1D1D1F",     # Apple ink
+    "text_secondary": "#6E6E73",
+    "text_tertiary": "#86868B",
+    "text_on_accent": "#FFFFFF",
+    "text_hint": "#8E8E93",
+
+    # 输入框
+    "input_bg": "#F5F5F7",
+    "input_border": "rgba(60, 60, 67, 0.18)",
+    "input_border_focus": ACCENT_LIGHT,
+    "input_text": "#1D1D1F",
+
+    # 强调与状态
+    "accent": ACCENT_LIGHT,
+    "accent_hover": ACCENT_HOVER_LIGHT,
+    "accent_bg": "rgba(0, 113, 227, 0.10)",    # accent 弱底（进度条轨道 / 选中 chip）
+    "accent_on": "#FFFFFF",
+    "success": SUCCESS_LIGHT,
+    "warning": WARNING_LIGHT,
+    "error": ERROR_LIGHT,
+
+    # 日志
+    "log_bg": "#F5F5F7",
+    "log_text": "#1D1D1F",
+
+    # 阴影（tinted 黑，漫射）
+    "shadow_card": {"offset_y": 1, "blur": 6, "color": "rgba(0, 0, 0, 0.08)"},
+    "shadow_card_elevated": {"offset_y": 8, "blur": 30, "color": "rgba(0, 0, 0, 0.10)"},
+    # inset 高光（近似 Liquid Glass 上边缘反光，诚实标注非官方材质）
+    "inset_highlight": "rgba(255, 255, 255, 0.6)",
+}
+
+_DARK = {
+    # 画布与表面（canvas 用深灰而非纯黑，避免卡片融进背景）
+    "canvas": "#161617",
+    "canvas_gradient_end": "#0E0E10",
+    "surface": "#1C1C1E",
+    "surface_elevated": "#2C2C2E",
+    "surface_sunken": "#0E0E0F",
+    "surface_hover": "#3A3A3C",
+
+    # 玻璃 / 边框（卡片用实色更稳，边框加亮让卡片与背景分离）
+    "glass_bg": "#242426",
+    "glass_bg_elevated": "#2C2C2E",
+    "border": "rgba(255, 255, 255, 0.12)",
+    "border_strong": "rgba(255, 255, 255, 0.28)",
+    "border_focus": ACCENT_DARK,
+    "divider": "rgba(255, 255, 255, 0.14)",
+
+    # 文字层级
+    "text_primary": "#F5F5F7",
+    "text_secondary": "#AEAEB2",
+    "text_tertiary": "#8E8E93",
+    "text_on_accent": "#FFFFFF",
+    "text_hint": "#636366",
+
+    # 输入框
+    "input_bg": "#0E0E0F",
+    "input_border": "rgba(255, 255, 255, 0.18)",
+    "input_border_focus": ACCENT_DARK,
+    "input_text": "#F5F5F7",
+
+    # 强调与状态
+    "accent": ACCENT_DARK,
+    "accent_hover": ACCENT_HOVER_DARK,
+    "accent_bg": "rgba(10, 132, 255, 0.22)",
+    "accent_on": "#FFFFFF",
+    "success": SUCCESS_DARK,
+    "warning": WARNING_DARK,
+    "error": ERROR_DARK,
+
+    # 日志
+    "log_bg": "rgba(0, 0, 0, 0.3)",
+    "log_text": "#F5F5F7",
+
+    # 阴影（深色漫射，非纯黑）
+    "shadow_card": {"offset_y": 1, "blur": 8, "color": "rgba(0, 0, 0, 0.4)"},
+    "shadow_card_elevated": {"offset_y": 10, "blur": 40, "color": "rgba(0, 0, 0, 0.55)"},
+    "inset_highlight": "rgba(255, 255, 255, 0.08)",
+}
+
+MODE_TOKENS = {"light": _LIGHT, "dark": _DARK}
+
+
+def tokens(page: ft.Page) -> dict:
+    """根据 page 当前主题模式返回语义令牌 dict。
+
+    page.theme_mode 为 SYSTEM 时，按平台实际亮度解析。
+    """
+    mode = page.theme_mode
+    if mode == ft.ThemeMode.SYSTEM:
+        # Flet 提供 platform_brightness 区分系统实际外观
+        actual = getattr(page, "platform_brightness", "light")
+        key = "dark" if actual == ft.Brightness.DARK else "light"
+    elif mode == ft.ThemeMode.DARK:
+        key = "dark"
+    else:
+        key = "light"
+    return MODE_TOKENS[key]
+
+
+def is_dark(page: ft.Page) -> bool:
+    """当前是否处于深色（解析系统模式后）。"""
+    return tokens(page) is _DARK
+
+
+# ============================================================
+# 兼容别名（指向浅色令牌，仅供极少数未迁移代码引用；
+# 新代码一律用 tokens(page)[...]）
+# ============================================================
+
+PRIMARY = ACCENT_LIGHT
+PRIMARY_LIGHT = ACCENT_LIGHT
+PRIMARY_DARK = ACCENT_DARK
+TEXT_PRIMARY = _LIGHT["text_primary"]
+TEXT_LABEL = _LIGHT["text_primary"]
+TEXT_DESC = _LIGHT["text_secondary"]
+TEXT_HINT = _LIGHT["text_hint"]
+TEXT_ON_PRIMARY = _LIGHT["text_on_accent"]
+GLASS_BG_LIGHT = _LIGHT["glass_bg"]
+GLASS_BG_MID = _LIGHT["glass_bg"]
+GLASS_BG_DEEP = _LIGHT["glass_bg_elevated"]
+GLASS_BORDER = _LIGHT["border"]
+GLASS_BORDER_FOCUS = _LIGHT["border_focus"]
+ACCENT = ACCENT_LIGHT
+SUCCESS = SUCCESS_LIGHT
+WARNING = WARNING_LIGHT
+ERROR = ERROR_LIGHT
+INPUT_BG = _LIGHT["input_bg"]
+INPUT_BORDER = _LIGHT["input_border"]
+INPUT_BORDER_FOCUS = _LIGHT["input_border_focus"]
+INPUT_TEXT = _LIGHT["input_text"]
+INPUT_HINT = _LIGHT["text_hint"]
+DIVIDER_COLOR = _LIGHT["divider"]
+LOG_BG = _LIGHT["log_bg"]
+LOG_TEXT = _LIGHT["log_text"]
+RADIUS = RADIUS_CARD
+RADIUS_SM = RADIUS_GROUP
+BTN_RADIUS = RADIUS_BTN  # 兼容别名
+SHADOW_CARD = _LIGHT["shadow_card"]
+SHADOW_CARD_DEEP = _LIGHT["shadow_card_elevated"]
+BG_PAGE = _LIGHT["canvas"]
+BG_GRADIENT_START = _LIGHT["canvas"]
+BG_GRADIENT_END = _LIGHT["canvas_gradient_end"]
+# 字号兼容
+FONT_TITLE_COMPAT = FONT_DISPLAY

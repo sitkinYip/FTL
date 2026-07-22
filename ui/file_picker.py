@@ -1,18 +1,21 @@
 """
-文件选择区组件 v2 - 深色毛玻璃风格
-支持：按钮选择 + 从剪贴板导入（Finder ⌘C 后一键导入）+ 手动粘贴路径
+文件选择区组件 v4 - Apple 高密度工具风格
+
+不再套 GlassPanel（高密度工具 §4.4 禁卡片）。作为分节内容直接呈现。
+布局：状态行 → 按钮行 → 路径输入 → 文件列表（有文件时）。
+文件大小 / 字符数用等宽字体（§7 mono for numbers）。
+
+业务逻辑与公共属性不变。
 """
 
 import subprocess
 import flet as ft
 from pathlib import Path
 from ui.theme import (
-    TEXT_PRIMARY, TEXT_LABEL, TEXT_DESC, TEXT_HINT, TEXT_ON_PRIMARY,
-    PRIMARY, PRIMARY_LIGHT, ACCENT,
-    INPUT_BG, INPUT_BORDER, INPUT_BORDER_FOCUS, INPUT_TEXT, INPUT_HINT,
-    FONT_SECTION, FONT_LABEL, FONT_BTN, FONT_BODY, FONT_HINT,
+    tokens,
+    FONT_LABEL, FONT_BTN, FONT_BODY, FONT_HINT, FONT_META,
     SPACING_SM, SPACING_MD,
-    BTN_HEIGHT, BTN_CHIP_HEIGHT, BTN_RADIUS, RADIUS_INPUT,
+    BTN_HEIGHT, RADIUS_INPUT, RADIUS_BTN,
 )
 from font.converter import SUPPORTED_INPUT_EXTENSIONS
 
@@ -26,93 +29,113 @@ class FilePicker(ft.Column):
         self._selected_files: list[str] = []
         self._picker = ft.FilePicker()
 
-        # 路径输入框：支持粘贴路径 / 多行路径
+        t = tokens(page)
+
+        # 状态文字（与按钮行同行右侧）
+        self._status = ft.Text("未选择文件", size=FONT_HINT, color=t["text_secondary"])
+
+        # 按钮行
+        self._pick_btn = ft.ElevatedButton(
+            "选择文件",
+            icon=ft.Icons.FOLDER_OPEN_OUTLINED,
+            on_click=self._pick_files,
+            height=BTN_HEIGHT,
+            style=ft.ButtonStyle(
+                bgcolor=t["accent"],
+                color=t["accent_on"],
+                shape=ft.RoundedRectangleBorder(radius=RADIUS_BTN),
+                text_style=ft.TextStyle(size=FONT_BTN, weight=ft.FontWeight.W_500),
+                icon_color=t["accent_on"],
+            ),
+        )
+        self._clipboard_btn = ft.OutlinedButton(
+            "从剪贴板导入",
+            icon=ft.Icons.CONTENT_PASTE_ROUNDED,
+            on_click=self._import_from_clipboard,
+            height=BTN_HEIGHT,
+            tooltip="在 Finder 中选中文件按 ⌘C，然后点此导入",
+            style=ft.ButtonStyle(
+                color=t["text_primary"],
+                shape=ft.RoundedRectangleBorder(radius=RADIUS_BTN),
+                side=ft.BorderSide(1, t["border_strong"]),
+                text_style=ft.TextStyle(size=FONT_BTN, weight=ft.FontWeight.W_500),
+                icon_color=t["text_primary"],
+            ),
+        )
+        self._clear_btn = ft.TextButton(
+            "清空", icon=ft.Icons.CLEAR_ALL_OUTLINED, on_click=self._clear_files,
+            style=ft.ButtonStyle(color=t["text_secondary"]),
+        )
+
+        # 路径输入框
         self._path_input = ft.TextField(
             hint_text="粘贴字体文件路径后按回车添加（支持多行）",
-            hint_style=ft.TextStyle(color=INPUT_HINT, size=FONT_HINT),
+            hint_style=ft.TextStyle(color=t["text_hint"], size=FONT_HINT),
             border_radius=RADIUS_INPUT,
-            border_color=INPUT_BORDER,
-            focused_border_color=INPUT_BORDER_FOCUS,
-            border_width=1.5,
-            bgcolor=INPUT_BG,
-            color=INPUT_TEXT,
+            border_color=t["input_border"],
+            focused_border_color=t["input_border_focus"],
+            border_width=1,
+            bgcolor=t["input_bg"],
+            color=t["input_text"],
             text_size=FONT_BODY,
-            cursor_color=PRIMARY,
-            prefix_icon=ft.Icons.FILE_DOWNLOAD_OUTLINED,
+            cursor_color=t["accent"],
+            prefix_icon=ft.Icons.LINK_OUTLINED,
             on_submit=self._on_path_submit,
             multiline=True,
             min_lines=1,
-            max_lines=3,
+            max_lines=2,
             suffix=ft.IconButton(
                 icon=ft.Icons.ADD_CIRCLE_OUTLINE,
-                icon_color=PRIMARY_LIGHT,
+                icon_color=t["accent"],
                 icon_size=20,
                 on_click=self._pick_files,
                 tooltip="选择文件",
             ),
         )
 
-        self._file_list = ft.ListView(spacing=SPACING_SM, auto_scroll=True, height=30, visible=False)
-        self._status = ft.Text("未选择文件", size=FONT_LABEL, color=TEXT_DESC)
+        # 文件列表（有文件时显示）
+        self._file_list = ft.ListView(spacing=2, auto_scroll=True, height=100, visible=False)
 
         self.controls = [
+            # 按钮行 + 状态
             ft.Row([
-                # 左侧列：标题、按钮、路径输入
-                ft.Column([
-                    ft.Row([
-                        ft.Text("字体文件", size=FONT_SECTION, weight=ft.FontWeight.W_600, color=TEXT_LABEL),
-                        ft.Container(expand=True),
-                        self._status,
-                    ]),
-                    ft.Row([
-                        ft.ElevatedButton(
-                            "选择文件",
-                            icon=ft.Icons.FOLDER_OPEN,
-                            on_click=self._pick_files,
-                            height=BTN_HEIGHT,
-                            style=ft.ButtonStyle(
-                                bgcolor=PRIMARY,
-                                color=TEXT_ON_PRIMARY,
-                                shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
-                                text_style=ft.TextStyle(size=FONT_BTN, weight=ft.FontWeight.W_500),
-                            ),
-                        ),
-                        ft.ElevatedButton(
-                            "从剪贴板导入",
-                            icon=ft.Icons.CONTENT_PASTE,
-                            on_click=self._import_from_clipboard,
-                            height=BTN_HEIGHT,
-                            tooltip="在 Finder 中选中文件按 ⌘C，然后点此导入",
-                            style=ft.ButtonStyle(
-                                bgcolor="rgba(108,107,255,0.2)",
-                                color=TEXT_LABEL,
-                                shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
-                                text_style=ft.TextStyle(size=FONT_BTN, weight=ft.FontWeight.W_500),
-                            ),
-                        ),
-                        ft.TextButton("清空", icon=ft.Icons.CLEAR_ALL, on_click=self._clear_files,
-                                      style=ft.ButtonStyle(color=TEXT_DESC)),
-                    ], spacing=SPACING_SM),
-                    # 文件列表（有文件时才可见）
-                    self._file_list,
-                ], expand=True),
-            ]),
+                self._pick_btn,
+                self._clipboard_btn,
+                self._clear_btn,
+                ft.Container(expand=True),
+                self._status,
+            ], spacing=SPACING_SM),
+            self._path_input,
+            self._file_list,
         ]
+
+    def apply_theme(self):
+        t = tokens(self._page)
+        self._status.color = t["text_secondary"]
+        self._pick_btn.style.bgcolor = t["accent"]
+        self._pick_btn.style.color = t["accent_on"]
+        self._pick_btn.style.icon_color = t["accent_on"]
+        self._clipboard_btn.style.color = t["text_primary"]
+        self._clipboard_btn.style.side = ft.BorderSide(1, t["border_strong"])
+        self._clipboard_btn.style.icon_color = t["text_primary"]
+        self._clear_btn.style.color = t["text_secondary"]
+        self._path_input.hint_style = ft.TextStyle(color=t["text_hint"], size=FONT_HINT)
+        self._path_input.border_color = t["input_border"]
+        self._path_input.focused_border_color = t["input_border_focus"]
+        self._path_input.bgcolor = t["input_bg"]
+        self._path_input.color = t["input_text"]
+        self._path_input.cursor_color = t["accent"]
 
     @property
     def selected_files(self) -> list[str]:
         return self._selected_files.copy()
 
     def _on_path_submit(self, e):
-        """路径输入回车或点击添加按钮"""
         raw = self._path_input.value or ""
-        # 支持多路径：换行分隔 or 空格分隔（但要兼容路径中有空格的情况）
-        # 先按换行拆分，每行再尝试整行作为一个路径
         lines = [l.strip().strip("'\"") for l in raw.split("\n") if l.strip()]
         added = False
         invalid = []
         for line in lines:
-            # 尝试整行作为路径
             p = Path(line)
             if p.exists() and p.is_file():
                 ext = p.suffix.lower()
@@ -130,9 +153,7 @@ class FilePicker(ft.Column):
             self._page.update()
 
     def _import_from_clipboard(self, e):
-        """从 macOS 剪贴板导入文件路径（Finder 中 ⌘C 复制的文件）"""
         try:
-            # 使用 osascript 获取 Finder 中复制的文件路径（POSIX path）
             script = (
                 'set theFiles to (the clipboard as «class furl») as text\n'
                 'set posixPath to POSIX path of theFiles\n'
@@ -145,10 +166,8 @@ class FilePicker(ft.Column):
 
             paths = []
             if result.returncode == 0 and result.stdout.strip():
-                # 单文件情况
                 paths = [result.stdout.strip()]
             else:
-                # 尝试多文件（alias list）
                 script_multi = (
                     'set fileList to (the clipboard as «class furl»)\n'
                     'set output to ""\n'
@@ -165,7 +184,6 @@ class FilePicker(ft.Column):
                     paths = [l.strip() for l in result2.stdout.strip().split("\n") if l.strip()]
 
             if not paths:
-                # fallback: 尝试 pbpaste（用户可能用 ⌥⌘C 复制了路径文本）
                 result3 = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2)
                 if result3.returncode == 0 and result3.stdout.strip():
                     paths = [l.strip().strip("'\"") for l in result3.stdout.strip().split("\n") if l.strip()]
@@ -181,15 +199,15 @@ class FilePicker(ft.Column):
 
             if added > 0:
                 self._refresh_list()
-                self._show_snack(f"已从剪贴板导入 {added} 个文件", "#5AE87C")
+                self._show_snack(f"已从剪贴板导入 {added} 个文件", tokens(self._page)["success"])
             else:
-                self._show_snack("剪贴板中没有有效的字体文件（需 .ttf/.otf/.woff/.woff2）", "#FF9500")
+                self._show_snack("剪贴板中没有有效的字体文件（需 .ttf/.otf/.woff/.woff2）",
+                                 tokens(self._page)["warning"])
 
         except Exception as ex:
-            self._show_snack(f"读取剪贴板失败: {ex}", "#FF5A5A")
+            self._show_snack(f"读取剪贴板失败: {ex}", tokens(self._page)["error"])
 
     def _show_snack(self, msg: str, color: str):
-        """显示 SnackBar 提示"""
         sb = ft.SnackBar(content=ft.Text(msg, color="#FFFFFF"), bgcolor=color)
         self._page.overlay.append(sb)
         sb.open = True
@@ -221,6 +239,7 @@ class FilePicker(ft.Column):
             self._refresh_list()
 
     def _refresh_list(self):
+        t = tokens(self._page)
         self._file_list.controls.clear()
         self._path_input.error_text = None
         if not self._selected_files:
@@ -234,10 +253,13 @@ class FilePicker(ft.Column):
                 size_kb = p.stat().st_size / 1024 if p.exists() else 0
                 self._file_list.controls.append(
                     ft.Row([
-                        ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=16, color=PRIMARY_LIGHT),
-                        ft.Text(p.name, size=FONT_LABEL, color=TEXT_PRIMARY, expand=True),
-                        ft.Text(f"{size_kb:.0f} KB", size=FONT_LABEL, color=TEXT_DESC),
-                        ft.IconButton(ft.Icons.CLOSE, icon_size=14, icon_color=TEXT_DESC,
+                        ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED, size=16, color=t["accent"]),
+                        ft.Text(p.name, size=FONT_LABEL, color=t["text_primary"], expand=True),
+                        # 文件大小用等宽字体（§7 mono for numbers）
+                        ft.Text(f"{size_kb:.0f} KB", size=FONT_META, color=t["text_secondary"],
+                                font_family="monospace"),
+                        ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=14,
+                                      icon_color=t["text_tertiary"],
                                       on_click=lambda e, path=fp: self._remove_file(path)),
                     ], spacing=SPACING_SM)
                 )

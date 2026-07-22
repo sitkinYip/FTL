@@ -34,3 +34,4 @@ dist/
 
 # ── Copilot 本地缓存 ─────────────────────────
 .aone_copilot/
+.zcode/

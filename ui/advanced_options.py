@@ -1,11 +1,14 @@
 """
-高级处理选项组件 v2 - 深色毛玻璃风格
+高级处理选项组件 v4 - Apple 高密度工具风格
+
+折叠面板：chevron 图标 + 系统蓝开关。
+options_dict 公共属性不变。
 """
 
 import flet as ft
 from ui.theme import (
-    TEXT_LABEL, TEXT_DESC, PRIMARY,
-    FONT_SECTION, FONT_LABEL,
+    tokens,
+    FONT_LABEL, FONT_HINT,
     SPACING_SM, SPACING_MD,
 )
 
@@ -17,40 +20,58 @@ class AdvancedOptions(ft.Column):
         super().__init__(spacing=SPACING_SM)
         self._page = page
         self._expanded = False
+        t = tokens(page)
 
         self._sw_keep_layout = ft.Switch(
-            label="保留布局特性表（GPOS/GSUB）", value=True, active_color=PRIMARY,
-            label_text_style=ft.TextStyle(size=FONT_LABEL, color=TEXT_LABEL),
+            label="保留布局特性表（GPOS/GSUB）", value=True, active_color=t["accent"],
+            label_text_style=ft.TextStyle(size=FONT_LABEL, color=t["text_primary"]),
         )
         self._sw_keep_names = ft.Switch(
-            label="保留完整 name 表", value=True, active_color=PRIMARY,
-            label_text_style=ft.TextStyle(size=FONT_LABEL, color=TEXT_LABEL),
+            label="保留完整 name 表", value=True, active_color=t["accent"],
+            label_text_style=ft.TextStyle(size=FONT_LABEL, color=t["text_primary"]),
         )
         self._sw_notdef = ft.Switch(
-            label="保留 .notdef 字形", value=True, active_color=PRIMARY,
-            label_text_style=ft.TextStyle(size=FONT_LABEL, color=TEXT_LABEL),
+            label="保留 .notdef 字形", value=True, active_color=t["accent"],
+            label_text_style=ft.TextStyle(size=FONT_LABEL, color=t["text_primary"]),
         )
         self._sw_glyph_names = ft.Switch(
-            label="保留字形名称（glyph names）", value=False, active_color=PRIMARY,
-            label_text_style=ft.TextStyle(size=FONT_LABEL, color=TEXT_LABEL),
+            label="保留字形名称（glyph names）", value=False, active_color=t["accent"],
+            label_text_style=ft.TextStyle(size=FONT_LABEL, color=t["text_primary"]),
         )
         self._sw_hinting = ft.Switch(
-            label="保留 hinting 信息", value=False, active_color=PRIMARY,
-            label_text_style=ft.TextStyle(size=FONT_LABEL, color=TEXT_LABEL),
+            label="保留 hinting 信息", value=False, active_color=t["accent"],
+            label_text_style=ft.TextStyle(size=FONT_LABEL, color=t["text_primary"]),
         )
 
+        self._switches = [self._sw_keep_layout, self._sw_keep_names, self._sw_notdef,
+                          self._sw_glyph_names, self._sw_hinting]
+
         self._options_panel = ft.Column(
-            [self._sw_keep_layout, self._sw_keep_names, self._sw_notdef,
-             self._sw_glyph_names, self._sw_hinting],
+            self._switches,
             spacing=SPACING_SM, visible=False,
         )
 
+        # 折叠切换：文字 + chevron 图标
         self._toggle_btn = ft.TextButton(
-            "高级选项 ▶", icon=ft.Icons.TUNE, on_click=self._toggle,
-            style=ft.ButtonStyle(color=TEXT_DESC),
+            "高级选项",
+            icon=ft.Icons.TUNE_OUTLINED,
+            on_click=self._toggle,
+            style=ft.ButtonStyle(color=t["text_secondary"]),
         )
+        self._chevron = ft.Icon(ft.Icons.EXPAND_MORE, size=18, color=t["text_secondary"])
 
-        self.controls = [self._toggle_btn, self._options_panel]
+        self.controls = [
+            ft.Row([self._toggle_btn, self._chevron], spacing=2),
+            self._options_panel,
+        ]
+
+    def apply_theme(self):
+        t = tokens(self._page)
+        for sw in self._switches:
+            sw.active_color = t["accent"]
+            sw.label_text_style = ft.TextStyle(size=FONT_LABEL, color=t["text_primary"])
+        self._toggle_btn.style.color = t["text_secondary"]
+        self._chevron.color = t["text_secondary"]
 
     @property
     def options_dict(self) -> dict:
@@ -65,5 +86,5 @@ class AdvancedOptions(ft.Column):
     def _toggle(self, e):
         self._expanded = not self._expanded
         self._options_panel.visible = self._expanded
-        self._toggle_btn.text = "高级选项 ▼" if self._expanded else "高级选项 ▶"
+        self._chevron.icon = ft.Icons.EXPAND_LESS if self._expanded else ft.Icons.EXPAND_MORE
         self._page.update()
