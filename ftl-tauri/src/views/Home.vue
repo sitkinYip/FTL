@@ -1,116 +1,190 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { NButton, NText, useMessage } from "naive-ui";
+import { useFontStore } from "../stores/fontStore";
+import { onSidecarEvent } from "../composables/useSidecar";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import FileDropZone from "../components/FileDropZone.vue";
+import CharsetInput from "../components/CharsetInput.vue";
+import FormatOptions from "../components/FormatOptions.vue";
+import ProcessingDialog from "../components/ProcessingDialog.vue";
 
-// 临时:验证 sidecar 桥接是否通畅
-const sidecarStatus = ref("等待 sidecar...");
-const lastEvent = ref("");
-let unlisten: UnlistenFn | null = null;
+const store = useFontStore();
+const message = useMessage();
+const fileDropZone = ref();
+let unlistenSidecar: UnlistenFn | null = null;
 
 onMounted(async () => {
-  try {
-    unlisten = await listen("sidecar://event", (event) => {
-      lastEvent.value = JSON.stringify(event.payload);
-      const payload = event.payload as { type: string };
-      if (payload.type === "ready") {
-        sidecarStatus.value = "sidecar 已连接 ✓";
-      } else if (payload.type === "error") {
-        sidecarStatus.value = "sidecar 错误";
-      }
-    });
-    sidecarStatus.value = "正在监听 sidecar 事件...";
-  } catch (e) {
-    sidecarStatus.value = `监听失败: ${e}`;
-  }
+  // 监听 sidecar 事件,转发到 store
+  unlistenSidecar = await onSidecarEvent((event) => {
+    store.handleSidecarEvent(event);
+  });
+
+  // 全局键盘:⌘V / Ctrl+V 粘贴文件
+  window.addEventListener("keydown", handlePaste);
 });
 
 onUnmounted(() => {
-  unlisten?.();
+  unlistenSidecar?.();
+  window.removeEventListener("keydown", handlePaste);
 });
 
-// 临时测试按钮:发一个处理命令
-const testProcess = async () => {
-  try {
-    await invoke("send_to_sidecar", {
-      command: {
-        type: "process",
-        id: "test-from-ui",
-        files: [],
-        characters: "test",
-        formats: ["woff2"],
-        options: {
-          keep_layout: true,
-          keep_names: true,
-          notdef_glyph: true,
-          glyph_names: false,
-          keep_hinting: false,
-        },
-        output_mode: "subdir",
-        custom_dir: null,
-      },
-    });
-    sidecarStatus.value = "命令已发送";
-  } catch (e) {
-    sidecarStatus.value = `发送失败: ${e}`;
+function handlePaste(e: KeyboardEvent) {
+  const isPaste = (e.key === "v" || e.key === "V") && (e.metaKey || e.ctrlKey);
+  if (isPaste && !store.isProcessing) {
+    e.preventDefault();
+    fileDropZone.value?.pasteFromClipboard();
   }
-};
+}
+
+function handleStart() {
+  if (!store.sidecarReady) {
+    message.warning("后端尚未就绪,请稍候");
+    return;
+  }
+  if (store.files.length === 0) {
+    message.warning("请先选择至少一个字体文件");
+    return;
+  }
+  if (store.charset.trim().length === 0) {
+    message.warning("请输入需要保留的字符集");
+    return;
+  }
+  if (store.selectedFormats.length === 0) {
+    message.warning("请至少选择一种输出格式");
+    return;
+  }
+  store.startProcessing();
+}
 </script>
 
 <template>
   <div class="home">
-    <div class="placeholder">
-      <h1>FTL</h1>
-      <p>Font Tool Lite (Tauri 版)</p>
-      <p class="status">{{ sidecarStatus }}</p>
-      <p v-if="lastEvent" class="event mono">{{ lastEvent }}</p>
-      <button class="test-btn" @click="testProcess">测试发送命令</button>
+    <div class="container">
+      <!-- 品牌行 -->
+      <header class="brand-row">
+        <div class="brand">
+          <h1 class="brand-title">FTL</h1>
+          <span class="brand-name">Font Tool Lite</span>
+        </div>
+        <NText depth="3" class="brand-desc">字体子集压缩工具</NText>
+      </header>
+
+      <!-- 上传区(铺满) -->
+      <section class="upload-section">
+        <FileDropZone ref="fileDropZone" />
+      </section>
+
+      <!-- 双列:字符集 | 输出格式 -->
+      <section class="config-row">
+        <div class="config-col charset-col">
+          <h2 class="section-title">字符集</h2>
+          <CharsetInput />
+        </div>
+        <div class="config-col format-col">
+          <h2 class="section-title">输出格式</h2>
+          <FormatOptions />
+        </div>
+      </section>
     </div>
+
+    <!-- 底部固定开始按钮 -->
+    <footer class="start-bar">
+      <NButton
+        type="primary"
+        size="large"
+        round
+        :disabled="!store.canStart"
+        :loading="store.isProcessing"
+        class="start-btn"
+        @click="handleStart"
+      >
+        {{ store.isProcessing ? "处理中..." : "开始处理" }}
+      </NButton>
+    </footer>
+
+    <!-- 处理进度弹窗 -->
+    <ProcessingDialog />
   </div>
 </template>
 
 <style scoped>
 .home {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
 }
-.placeholder {
-  text-align: center;
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  overflow-y: auto;
 }
-.placeholder h1 {
-  font-size: 48px;
+
+/* 品牌行 */
+.brand-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.brand-title {
+  font-size: 28px;
   font-weight: 700;
+  color: var(--ftl-text-primary);
   margin: 0;
 }
-.placeholder p {
-  color: #6e6e73;
-  margin: 8px 0;
+
+.brand-name {
+  font-size: 20px;
+  font-weight: 300;
+  color: var(--ftl-text-secondary);
 }
-.status {
-  font-weight: 500;
+
+.brand-desc {
+  font-size: 13px;
 }
-.event {
-  font-size: 11px;
-  opacity: 0.7;
-  max-width: 600px;
-  word-break: break-all;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
+
+/* 配置双列 */
+.config-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
 }
-.test-btn {
-  margin-top: 16px;
-  padding: 8px 24px;
-  background: #0071e3;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
+
+.config-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.test-btn:hover {
-  background: #0077ed;
+
+.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ftl-text-primary);
+  margin: 0;
+}
+
+/* 底部按钮栏 */
+.start-bar {
+  display: flex;
+  justify-content: center;
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--ftl-border);
+  background: var(--ftl-canvas);
+}
+
+.start-btn {
+  min-width: 200px;
 }
 </style>
