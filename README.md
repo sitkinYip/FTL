@@ -31,14 +31,35 @@ Tauri 的 `onDragDropEvent` 是一等公民,能拿到完整文件路径。详见
 
 **为什么用 Python sidecar**:fontTools 的 subsetter(GPOS/GSUB 特性过滤、字形闭包、CFF desubroutinize)无等价的纯 Rust/JS 实现,重写不现实。现有后端 ~400 行零 UI 耦合,直接复用。
 
-## 开发
+## 快速开始
 
-### 前置要求
+### 一键安装环境 + 启动
+
+```bash
+# 1. 安装所有环境依赖(Node/Rust/Python + 项目依赖)
+npm run setup
+
+# 2. 启动应用
+npm start
+```
+
+`npm run setup` 会自动检测并安装:
+- **Node.js + pnpm**(前端构建)
+- **Rust + Cargo**(Tauri 编译)
+- **Python 3 + venv + fontTools/brotli**(字体子集化 sidecar)
+
+已安装的会跳过,缺失的会给出平台对应的安装指引。
+
+### 手动安装(如果一键脚本有问题)
+
+<details>
+<summary>手动安装步骤</summary>
+
+#### 前置要求
 - Node.js 18+ / pnpm
 - Rust 1.75+ (cargo)
 - Python 3.10+
 
-### 安装
 ```bash
 # 前端依赖
 pnpm install
@@ -48,12 +69,15 @@ python3 -m venv .venv-sidecar
 .venv-sidecar/bin/pip install -r sidecar/requirements.txt
 ```
 
-### 运行
+#### 运行
 ```bash
-# 启动整个应用(Tauri + Vue dev server + Python sidecar)
-npx tauri dev
+npm start          # 或 npx tauri dev
+```
+</details>
 
-# 或单独测试 sidecar(命令行手动喂数据)
+### 单独测试 sidecar
+
+```bash
 echo '{"type":"process","id":"t1","files":["/path/to/font.ttf"],"characters":"ABC","formats":["woff2"],"options":{"keep_layout":true,"keep_names":true,"notdef_glyph":true,"glyph_names":false,"keep_hinting":false},"output_mode":"subdir","custom_dir":null}' | .venv-sidecar/bin/python sidecar/ftl_worker.py
 ```
 
