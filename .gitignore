@@ -1,37 +1,32 @@
-# ── Python ────────────────────────────────────
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyo
+# Dependencies
+node_modules/
 
-# ── 虚拟环境 ──────────────────────────────────
-.venv/
-venv/
-ENV/
-
-# ── 依赖安装标记 ──────────────────────────────
-.deps_installed
-
-# ── IDE / 编辑器 ──────────────────────────────
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# ── 构建 / 打包 ──────────────────────────────
-build/
+# Build output
 dist/
-*.egg-info/
-*.egg
-*.spec
+src-tauri/target/
 
-# ── 日志 / 临时文件 ──────────────────────────
+# Python
+.venv-sidecar/
+__pycache__/
+*.pyc
+sidecar/__pycache__/
+sidecar/font/__pycache__/
+sidecar/utils/__pycache__/
+
+# Auto-generated
+src/auto-imports.d.ts
+src/components.d.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Tauri
+src-tauri/gen/
+
+# Logs
 *.log
-*.tmp
-*.bak
-
-# ── Copilot 本地缓存 ─────────────────────────
-.aone_copilot/
-.zcode/
