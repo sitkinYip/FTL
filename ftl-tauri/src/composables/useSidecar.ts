@@ -17,6 +17,11 @@ export function sendCommand(command: SidecarCommand): Promise<void> {
   return invoke("send_to_sidecar", { command });
 }
 
+/** 查询 sidecar 是否已 ready(解决竞态:ready 可能在此函数调用前已发出) */
+export function checkSidecarReady(): Promise<boolean> {
+  return invoke<boolean>("check_sidecar_ready");
+}
+
 /** 监听 sidecar 事件(经 Rust 从 stdout 解析转发) */
 export async function onSidecarEvent(
   callback: (event: SidecarEvent) => void

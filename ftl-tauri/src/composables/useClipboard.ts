@@ -5,9 +5,8 @@
  * Windows: PowerShell Get-Clipboard 读文件路径
  * Linux: xclip / xsel 读剪贴板
  *
- * 在 Tauri 里通过 Rust 后端的 shell 命令执行,
- * 这里先用前端 @tauri-apps/plugin-shell 调用。
- * 若 shell 插件不可用,fallback 到纯文本剪贴板(Tauri clipboard manager)。
+ * 注意:AppleScript 的换行用多个 -e 参数传递(而非字面 \n),
+ * 避免转义问题。«» 在 UTF-8 下通过 shell 传递是安全的。
  */
 
 import { Command } from "@tauri-apps/plugin-shell";
@@ -55,30 +54,39 @@ async function readClipboardRaw(platform: Platform): Promise<string[]> {
   }
 }
 
-/** macOS:osascript 读 Finder 文件(«class furl»)+ pbpaste fallback */
+/** macOS:osascript 读 Finder 文件,用多个 -e 传脚本(避免换行转义问题) */
 async function readMacClipboard(): Promise<string[]> {
-  // 尝试单文件
-  const scriptSingle =
-    'set theFiles to (the clipboard as «class furl») as text\\n' +
-    "set posixPath to POSIX path of theFiles\\n" +
-    "return posixPath";
+  // 尝试单文件:clipboard as «class furl»
   try {
-    const output = await runShell("osascript", ["-e", scriptSingle]);
+    const output = await runShell("osascript", [
+      "-e",
+      'set theFiles to (the clipboard as \u00abclass furl\u00bb) as text',
+      "-e",
+      "set posixPath to POSIX path of theFiles",
+      "-e",
+      "return posixPath",
+    ]);
     if (output.trim()) return [output.trim()];
   } catch {
-    // 不是单文件,继续
+    // 不是单文件或剪贴板无文件,继续
   }
 
-  // 尝试多文件
-  const scriptMulti =
-    "set fileList to (the clipboard as «class furl»)\\n" +
-    'set output to ""\\n' +
-    "repeat with f in fileList\\n" +
-    '  set output to output & (POSIX path of (f as text)) & linefeed\\n' +
-    "end repeat\\n" +
-    "return output";
+  // 尝试多文件:alias list
   try {
-    const output = await runShell("osascript", ["-e", scriptMulti]);
+    const output = await runShell("osascript", [
+      "-e",
+      'set fileList to (the clipboard as \u00abclass furl\u00bb)',
+      "-e",
+      'set output to ""',
+      "-e",
+      "repeat with f in fileList",
+      "-e",
+      '  set output to output & (POSIX path of (f as text)) & linefeed',
+      "-e",
+      "end repeat",
+      "-e",
+      "return output",
+    ]);
     if (output.trim()) {
       return output.trim().split("\n").filter((l) => l.trim());
     }
@@ -86,7 +94,7 @@ async function readMacClipboard(): Promise<string[]> {
     // 继续 fallback
   }
 
-  // fallback:pbpaste(纯文本路径)
+  // fallback:pbpaste(用户可能用 ⌥⌘C 复制了路径文本)
   try {
     const output = await runShell("pbpaste", []);
     if (output.trim()) {
@@ -127,17 +135,28 @@ async function readWindowsClipboard(): Promise<string[]> {
   return [];
 }
 
-/** Linux:xclip */
+/** Linux:xclip / xsel */
 async function readLinuxClipboard(): Promise<string[]> {
-  for (const cmd of ["xclip", "xsel"]) {
-    try {
-      const output = await runShell(cmd, ["-selection", "clipboard", "-o"]);
-      if (output.trim()) {
-        return output.trim().split("\n").filter((l) => l.trim());
-      }
-    } catch {
-      // 试下一个
+  // xclip
+  try {
+    const output = await runShell("xclip", [
+      "-selection",
+      "clipboard",
+      "-o",
+    ]);
+    if (output.trim()) {
+      return output.trim().split("\n").filter((l) => l.trim());
     }
+  } catch {
+    // 试 xsel
+  }
+  try {
+    const output = await runShell("xsel", ["--clipboard", "--output"]);
+    if (output.trim()) {
+      return output.trim().split("\n").filter((l) => l.trim());
+    }
+  } catch {
+    // 放弃
   }
   return [];
 }

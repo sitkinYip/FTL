@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { NButton, NText, useMessage } from "naive-ui";
 import { useFontStore } from "../stores/fontStore";
-import { onSidecarEvent } from "../composables/useSidecar";
+import { onSidecarEvent, checkSidecarReady } from "../composables/useSidecar";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import FileDropZone from "../components/FileDropZone.vue";
 import CharsetInput from "../components/CharsetInput.vue";
@@ -19,6 +19,12 @@ onMounted(async () => {
   unlistenSidecar = await onSidecarEvent((event) => {
     store.handleSidecarEvent(event);
   });
+
+  // 主动查询 sidecar 状态(解决竞态:ready 可能在 listener 注册前已发出)
+  const ready = await checkSidecarReady();
+  if (ready) {
+    store.sidecarReady = true;
+  }
 
   // 全局键盘:⌘V / Ctrl+V 粘贴文件
   window.addEventListener("keydown", handlePaste);

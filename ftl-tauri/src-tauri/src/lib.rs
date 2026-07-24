@@ -18,8 +18,15 @@ use tauri_plugin_shell::ShellExt;
 // 全局持有 sidecar 子进程,供 cancel 用
 static SIDECAR_CHILD: OnceLock<Mutex<Option<CommandChild>>> = OnceLock::new();
 
+// 缓存 sidecar 是否已 ready(解决竞态:ready 可能在前端 listener 注册前发出)
+static SIDECAR_READY: OnceLock<Mutex<bool>> = OnceLock::new();
+
 fn sidecar_lock() -> &'static Mutex<Option<CommandChild>> {
     SIDECAR_CHILD.get_or_init(|| Mutex::new(None))
+}
+
+fn ready_lock() -> &'static Mutex<bool> {
+    SIDECAR_READY.get_or_init(|| Mutex::new(false))
 }
 
 /// 启动 sidecar 并持续读 stdout,转发为 `sidecar://event` 给前端。
@@ -61,6 +68,10 @@ fn spawn_sidecar(app: tauri::AppHandle) {
                         }
                         match serde_json::from_str::<serde_json::Value>(&line) {
                             Ok(msg) => {
+                                // 缓存 ready 状态(解决前端 listener 注册竞态)
+                                if msg.get("type").and_then(|t| t.as_str()) == Some("ready") {
+                                    *ready_lock().lock().unwrap() = true;
+                                }
                                 let _ = app_clone.emit("sidecar://event", msg);
                             }
                             Err(e) => {
@@ -112,6 +123,12 @@ fn kill_sidecar() {
     }
 }
 
+#[tauri::command]
+/// 查询 sidecar 是否已 ready(前端 onMounted 时调用,解决竞态)。
+fn check_sidecar_ready() -> bool {
+    *ready_lock().lock().unwrap()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -128,7 +145,11 @@ pub fn run() {
                 kill_sidecar();
             }
         })
-        .invoke_handler(tauri::generate_handler![send_to_sidecar, kill_sidecar])
+        .invoke_handler(tauri::generate_handler![
+            send_to_sidecar,
+            kill_sidecar,
+            check_sidecar_ready
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
